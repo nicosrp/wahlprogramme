@@ -38,9 +38,8 @@ def clean_and_tokenize(text):
     relevant_words = [word for word in words if word not in stop_words]
     return relevant_words
 
-# Alle Parteien und Jahre sammeln
+# Alle Parteien sammeln
 parties = [party for party in os.listdir(DATA_DIR) if os.path.isdir(os.path.join(DATA_DIR, party))]
-years = [year for year in ['2013', '2017', '2021']]
 
 # Datenstruktur für Wortzählungen und Rankings
 results = []
@@ -48,9 +47,15 @@ results = []
 # Datenverarbeitung
 for party in parties:
     party_dir = os.path.join(DATA_DIR, party)
-    for year in years:
-        pdf_path = os.path.join(party_dir, f"{year}.pdf")
-        if os.path.exists(pdf_path):
+    # Dynamisch alle PDF-Dateien im Parteiordner durchsuchen
+    pdf_files = [f for f in os.listdir(party_dir) if f.endswith(".pdf")]
+    
+    for pdf_file in pdf_files:
+        # Jahr aus dem Dateinamen extrahieren (z.B. 2013.pdf -> 2013)
+        year = re.findall(r'\d{4}', pdf_file)
+        if year:
+            year = year[0]  # Extrahiere das Jahr als Zeichenfolge
+            pdf_path = os.path.join(party_dir, pdf_file)
             text = extract_text_from_pdf(pdf_path)
             words = clean_and_tokenize(text)
             # Zähle die Wörter

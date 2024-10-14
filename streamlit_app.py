@@ -1,24 +1,25 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objs as go
-import os
 
 # Set page configuration with white background
 st.set_page_config(page_title="Bundestagswahlprogramme Analyse", layout="wide")
 
-# Set custom CSS for white background and removing the black background issue
+# Set custom CSS for white background and chart style
 st.markdown(
     """
     <style>
     body {
-        background-color: white;
-        color: black;
+        background-color: white !important;
+        color: black !important;
     }
     .css-18e3th9 {
         background-color: white !important;
+        color: black !important;
     }
     .css-1d391kg {
         background-color: white !important;
+        color: black !important;
     }
     </style>
     """,
@@ -33,19 +34,9 @@ def load_data():
 df = load_data()
 
 # Dynamisch die verfügbaren Jahre ermitteln
-available_years = sorted(df['Jahr'].unique(), reverse=True)
+available_years = sorted(df['Jahr'].unique())
 
-# Dynamischer Titel basierend auf den verfügbaren Jahren
-st.title(f"Analyse der Bundestagswahlprogramme ({', '.join(map(str, sorted(available_years)))})")
-
-# Erklärungstext zur Analyse
-st.markdown("""
-    Diese Analyse basiert auf den Wahlprogrammen der wichtigsten deutschen Parteien für die Jahre 2013, 2017 und 2021. 
-    Dabei werden die häufigsten Wörter in den Wahlprogrammen gezählt, wobei häufig vorkommende und wenig aussagekräftige Stopwörter (wie "und", "der", "die") automatisch herausgefiltert werden. 
-    In den folgenden Grafiken könnt ihr die Häufigkeit eines bestimmten Wortes über die Jahre hinweg vergleichen.
-""")
-
-# Farben der Parteien
+# Farben der Parteien definieren
 party_colors = {
     "CDU_CSU": "black",
     "SPD": "red",
@@ -55,69 +46,83 @@ party_colors = {
     "FDP": "yellow"
 }
 
-# Suchleiste
-search_word = st.text_input("Suche nach einem Wort:", "").strip().lower()
+# Erklärungstext zur Analyse mit dynamischer Angabe der Jahre
+st.markdown(f"""
+    Diese Analyse basiert auf den Wahlprogrammen der wichtigsten deutschen Parteien für die Jahre {', '.join(map(str, available_years))}. 
+    Dabei werden die häufigsten Wörter in den Wahlprogrammen gezählt, wobei häufig vorkommende und wenig aussagekräftige Stopwörter 
+    (wie "und", "der", "die") automatisch herausgefiltert werden. In den folgenden Grafiken könnt ihr die Häufigkeit 
+    eines bestimmten Wortes über die Jahre hinweg vergleichen.
+""")
 
-# Diagramm erstellen, falls ein Wort eingegeben wurde
+# Eingabe für das Wort
+search_word = st.text_input("Gib ein Wort ein und drücke Enter:", key="search_word").strip().lower()
+
+# Wenn ein Wort eingegeben wurde, zeige die Analyse
 if search_word:
-    # Filtere die Daten für das gesuchte Wort
-    filtered_df = df[df['Wort'] == search_word]
+    st.subheader(f"Analyse des Wortes: {search_word}")
 
-    if filtered_df.empty:
-        st.warning(f"Das Wort '{search_word}' wurde in den Wahlprogrammen nicht gefunden.")
-    else:
-        # Daten für das Diagramm sammeln
-        data = []
-        parties = filtered_df["Partei"].unique()
+    # Daten für das Diagramm sammeln
+    data = []
+    parties = df["Partei"].unique()
 
-        for party in parties:
-            party_data = filtered_df[filtered_df["Partei"] == party]
-            trace = go.Scatter(
-                x=party_data["Jahr"],
-                y=party_data["Vorkommen"],
-                mode='lines+markers',
-                name=party,
-                line=dict(color=party_colors.get(party, "gray")),
-                marker=dict(size=8),
-                hovertemplate=(
-                    '<b>%{text}</b><br>' +
-                    'Jahr: %{x}<br>' +
-                    'Häufigkeit: %{y}<br>' +
-                    'Rang: %{customdata}<extra></extra>'
-                ),
-                text=[party]*len(party_data),
-                customdata=party_data["Rang"]
-            )
-            data.append(trace)
+    for party in parties:
+        party_data = df[df["Partei"] == party]
+        occurrences = []
+        hover_info = []
 
-        # Layout mit transparentem Diagrammhintergrund und "Häufigkeit" als Achsentitel
-        layout = go.Layout(
-            title=f"Häufigkeit des Wortes '{search_word}' in den Wahlprogrammen",
-            xaxis=dict(title='Jahr', tickmode='array', tickvals=sorted(df['Jahr'].unique())),  # Responsive Jahre anzeigen
-            yaxis=dict(title='Häufigkeit'),
-            plot_bgcolor='rgba(0,0,0,0)',  # Transparenter Hintergrund
-            hovermode='closest'
+        for year in sorted(party_data["Jahr"].unique()):
+            yearly_data = party_data[party_data["Jahr"] == year]
+            word_data = yearly_data[yearly_data["Wort"] == search_word]
+            if not word_data.empty:
+                occurrences.append(word_data["Vorkommen"].values[0])
+                hover_info.append(f"{search_word}: {word_data['Vorkommen'].values[0]} (Rang: {word_data['Rang'].values[0]})")
+            else:
+                occurrences.append(0)
+                hover_info.append(f"{search_word}: nicht vorhanden")
+
+        # Erstelle die Daten für die Darstellung in der Chart
+        trace = go.Scatter(
+            x=sorted(party_data["Jahr"].unique()),
+            y=occurrences,
+            mode='lines+markers',
+            name=party,
+            line=dict(color=party_colors.get(party, "gray")),
+            marker=dict(size=8),
+            hovertemplate=(
+                '<b>%{text}</b><br>' +
+                'Jahr: %{x}<br>' +
+                'Häufigkeit: %{y}<br>' +
+                '%{customdata}<extra></extra>'
+            ),
+            text=[party]*len(occurrences),
+            customdata=hover_info
         )
+        data.append(trace)
 
-        fig = go.Figure(data=data, layout=layout)
-        st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Bitte gebt ein Wort in die Suchleiste ein, um die Analyse zu starten.")
+    # Layout mit transparentem Diagrammhintergrund und "Häufigkeit" als Achsentitel
+    layout = go.Layout(
+        title=f"Häufigkeit des Wortes '{search_word}'",
+        xaxis=dict(title='Jahr', tickmode='array', tickvals=sorted(df['Jahr'].unique())),  # Responsive Jahre anzeigen
+        yaxis=dict(title='Häufigkeit'),
+        plot_bgcolor='rgba(0,0,0,0)',  # Transparenter Hintergrund
+        hovermode='closest'
+    )
 
-# Füge einen Abstand ein
-st.markdown("<br><br>", unsafe_allow_html=True)
+    # Chart darstellen
+    fig = go.Figure(data=data, layout=layout)
+    st.plotly_chart(fig, use_container_width=True)
 
-# Neuer Abschnitt für Dropdown und Tabellen
+# Abschnitt für die Tabellen
 st.subheader("Top 20 Wörter pro Jahr und Partei")
 
 # Erklärungstext zu den Top 20 Wörtern
-st.markdown("""
-    In dieser Tabelle seht ihr die 20 häufigsten Wörter in den Wahlprogrammen der Parteien für das ausgewählte Jahr. 
+st.markdown(f"""
+    In dieser Tabelle seht ihr die 20 häufigsten Wörter in den Wahlprogrammen der Parteien für die Jahre {', '.join(map(str, available_years))}. 
     Die Wörter sind nach ihrer Häufigkeit im jeweiligen Wahlprogramm sortiert, wobei auch die Rangposition und die Anzahl der Vorkommnisse angegeben sind.
 """)
 
 # Dropdown-Menü für die Auswahl des Jahres (mit dem neuesten Jahr als Standard)
-selected_year = st.selectbox("Wähle ein Jahr:", available_years, index=0)
+selected_year = st.selectbox("Wähle ein Jahr:", available_years, index=len(available_years)-1)
 
 # Tabelle der Top 20 Wörter für das ausgewählte Jahr anzeigen
 st.subheader(f"Top 20 Wörter im Jahr {selected_year}")
