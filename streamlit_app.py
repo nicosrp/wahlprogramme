@@ -4,7 +4,6 @@ import plotly.graph_objs as go
 
 # Set page configuration with white background
 st.set_page_config(page_title="Bundestagswahlprogramme Analyse", layout="wide")
-st.title("Analyse der Bundestagswahlprogramme")
 
 # Set custom CSS for white background and chart style
 st.markdown(
